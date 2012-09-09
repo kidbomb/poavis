@@ -1,0 +1,264 @@
+<html>
+  <head>
+	<title>PoaVis</title>
+	<style>
+		.map {   
+					height: 500px;
+					width: 600px;
+			}
+			.rounded { border-radius: 8px; -moz-border-radius: 8px; -webkit-border-radius: 8px; -khtml-border-radius: 8px; }
+			body{
+					font-family:Arial;
+			}
+	</style>
+	<link rel="stylesheet" href="css/themes/base/jquery.ui.all.css">
+
+    <script type="text/javascript"
+	    src="http://maps.google.com/maps/api/js?sensor=false&libraries=places"></script>
+
+	<script type="text/javascript" src="js/jquery/jquery.min.js"></script>
+    	<script type="text/javascript" src="js/jquery/jquery-ui.min.js"></script>
+		<script type="text/javascript" src="js/jquery/ui/jquery.ui.map.js"></script> 
+		<script type="text/javascript" src="js/jquery/ui/jquery.ui.map.overlays.js"></script>
+	<script type="text/javascript">
+
+		Linha = function(){}
+
+		$(function() { 
+
+			//--------------------------------------------------------------------------------------------------
+			// initialize map
+			//--------------------------------------------------------------------------------------------------
+
+			$('#map-canvas').gmap({'center':'-30.13206313822174,-51.107025146484375', 'zoom':11});
+			$('#map-canvas').gmap().bind('init', function(ev, map) {
+			});
+
+			//--------------------------------------------------------------------------------------------------
+
+			var linhas_cache = {};
+			var linhas_polygon = {};
+
+			//create cache
+
+			$.getJSON('https://www.googleapis.com/fusiontables/v1/query?sql='
+					+'SELECT linha_id, onibus_id, nome,sentido '
+					+'FROM 14QM1T-uEiWyA805KWvriwxvyZ-fAEDWlATABxJA&key=AIzaSyDzCqo28pFaXthYWbHulJWwg08416pd_xQ', function(data) {
+				$.each(data.rows, function(index, value){
+					linha_id = value[0];
+					nome = value[2];
+					sentido = value[3];
+
+					linhas_cache[linha_id] = new Linha();
+					linhas_cache[linha_id].nome = nome;
+					linhas_cache[linha_id].sentido = sentido;
+				});
+			});
+			
+			var map_canvas = $('#map-canvas').gmap('get', 'map'); 
+
+			//--------------------------------------------------------------------------------------------------
+			// places autocomplete
+			//--------------------------------------------------------------------------------------------------
+
+			var input = document.getElementById('searchTextField');
+			var marker = new google.maps.Marker({
+          		map: map_canvas
+			});
+
+	        var autocomplete = new google.maps.places.Autocomplete(input);
+    	    autocomplete.bindTo('bounds', map_canvas);
+
+        	google.maps.event.addListener(autocomplete, 'place_changed', function() {
+          		var place = autocomplete.getPlace();
+          		if (place.geometry.viewport) {
+            		map_canvas.fitBounds(place.geometry.viewport);
+	          	} else {
+    	        	map_canvas.setCenter(place.geometry.location);
+        	    	map_canvas.setZoom(16);  // Why 17? Because it looks good.
+          		}
+
+	          	marker.setPosition(place.geometry.location);
+	
+    	      	var address = '';
+        	  	if (place.address_components) {
+            		address = [
+              		(place.address_components[0] && place.address_components[0].short_name || ''),
+	              	(place.address_components[1] && place.address_components[1].short_name || ''),
+    	          	(place.address_components[2] && place.address_components[2].short_name || '')
+        	    	].join(' ');
+				}
+
+        		var paradas_perto = new google.maps.FusionTablesLayer({
+          			query: {
+            			select: "geo",
+						from: "1lKFJZk19sczADdgx3kVE2uFEd_p-dcUFIbusVWg",
+						where: "ST_INTERSECTS(geo, CIRCLE(LATLNG("+place.geometry.location.lat()+","+ place.geometry.location.lng() +"),500))"
+          			},
+          			map: map_canvas
+				});
+				//AIzaSyDzCqo28pFaXthYWbHulJWwg08416pd_x
+
+			});
+
+			//--------------------------------------------------------------------------------------------------
+			// menu
+			//--------------------------------------------------------------------------------------------------
+			
+			// TODO: make menu a custom overlay
+			// https://developers.google.com/maps/documentation/javascript/v2/overlays
+			// look for Rectangle.prototype = new GOverlay();
+			function Menu(menu_div){
+				this.ts = null;
+				this.menu_div = menu_div;
+				this.items = [];
+			}
+
+			Menu.prototype =  new google.maps.OverlayView();
+
+			Menu.prototype.onAdd = function(){
+			  this.menu_div = $('<div class="item '+item.cl+'">'+item.label+'</div>');
+			  var panes = this.getPanes();
+			  $(panes.overlayLayer).append(menu_div);
+				
+			}
+ 
+			// add item
+			Menu.prototype.add = function(label, cl, fnc){
+				this.items.push({
+					label:label,
+					fnc:fnc,
+					cl:cl
+				});
+			}
+			Menu.prototype.draw = function(){
+			  var overlayProjection = this.getProjection();
+
+			  // Retrieve the southwest and northeast coordinates of this overlay
+			  // in latlngs and convert them to pixels coordinates.
+			  // We'll use these coordinates to resize the DIV.
+			  var sw = overlayProjection.fromLatLngToDivPixel(this.bounds_.getSouthWest());
+			  var ne = overlayProjection.fromLatLngToDivPixel(this.bounds_.getNorthEast());
+
+
+				menu_div.offset({ top: ne.y, left: sw.x})
+					
+			}
+	
+			Menu.prototype.hide = function() {
+			  if (this.menu_div) {
+			    	this.menu_div.hide();
+  				}
+			}
+
+			Menu.prototype.show = function() {
+			  if (this.menu_div) {
+			    	this.menu_div.show();
+  				}
+			}
+
+
+			var menu = new Menu(map_canvas);
+			menu.add('Direction to here', 'itemB',
+			function(){
+				alert("Test");
+			});
+			
+
+			//--------------------------------------------------------------------------------------------------
+			google.maps.event.addListener(map_canvas, 'rightclick', function(event) {
+				current = event;
+				menu.show();
+ 			});
+
+
+			//--------------------------------------------------------------------------------------------------
+			// Linhas autocomplete
+			//--------------------------------------------------------------------------------------------------
+			$( "#linhas" ).autocomplete({   
+				source:  function(request, response) {
+					ac_response = []
+					$.each(linhas_cache, function(linha_id, linha){
+							if(linha.nome.toLowerCase().indexOf(request.term.toLowerCase()) != -1){
+								text = linha.nome + " - Sentido " + linha.sentido;
+								ac_response.push({label:text, value:text, id:linha_id});
+							}		
+					});
+					response(ac_response);
+				},
+				select: function( event, ui ) {
+				alert("LABEL=" +  ui.item.label + "/n" + "VALUE=" + ui.item.value + "/n" + "VALUEB=" + this.value+ "/n ID = "+  ui.item.id);
+					linha_id = ui.item.id;
+	
+					linhas = new google.maps.FusionTablesLayer({
+						query: {
+								select: 'geometria',
+								from: '4493397', //linhas
+								where: "linha_id="+linha_id
+						},
+						map: map_canvas
+					});
+			
+			
+
+					linhas_polygon[linha_id] =  linhas;
+
+					//idea: usa IN clause in SQL and use where clause in fusetableoptions
+					//https://google-developers.appspot.com/maps/documentation/javascript/examples/layer-fusiontables-styling?hl=pt-BR
+					//$.each(linhas_polygon, function(linha_id, linha){
+					//		linha.setOptions({
+					//			styles:[{
+					//				polylineOptions: {
+					//					strokeColor: '#FF00FF'
+					//				}
+					//			}
+					//			]
+					//
+					//		});
+					//});
+
+
+
+					//TODO: 
+					//clear value from linhas
+					//add to table
+					//make add more than one fusion table layer
+					//status when loading line
+				}		
+				});
+
+			//functions
+			////////////////////////////////////////////////////////////////////
+
+
+	});
+
+
+    </script>
+  </head>
+  <body>
+	<div>
+		<div id="map-canvas" class="map rounded" style="float:left"></div>
+		<div style="float:left;width:50%;">
+			<div style="float:left;clear:left">
+				<div style="float:left">
+					<label for="linhas">Procurar por linha:</label>
+				</div>
+				<div style="float:left">
+					<input id="linhas" type="text" size="60" placeholder="Digite o nome de uma linha de ônibus" autocomplete="off"/>
+				</div>
+			</div>
+			<div style="float:left;clear:left">
+				<div style="float:left">
+					Procurar por local:
+				</div>
+				<div style="float:left">
+					<input id="searchTextField" type="text" size="60" placeholder="Digite um local" autocomplete="off" />
+				</div>
+			</div>
+		</div>
+
+	</div>
+  </body>
+</html>
+
