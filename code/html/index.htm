@@ -21,15 +21,49 @@
 		<script type="text/javascript" src="js/jquery/ui/jquery.ui.map.js"></script> 
 		<script type="text/javascript" src="js/jquery/ui/jquery.ui.map.overlays.js"></script>
 	<script type="text/javascript">
+	
+		//creating layers by jhands is lees error- prone
+		//weird behavior with geometries and inverted latlng
+	
+		FusionTablesProxy = function()
+		{
+			this.url = "https://www.googleapis.com/fusiontables/v1/query?sql=";
+		}
+		FusionTablesProxy.prototype.getLines = function(callback)
+		{
+			$.getJSON(this.url
+					+'SELECT linha_id, onibus_id, nome,sentido '
+					+'FROM 14QM1T-uEiWyA805KWvriwxvyZ-fAEDWlATABxJA&key=AIzaSyDzCqo28pFaXthYWbHulJWwg08416pd_xQ', callback)
+		}
+		
+		FusionTablesProxy.prototype.getLineGeometry = function(linha_id, callback)
+		{
+			$.getJSON(this.url
+					+'SELECT geometria '
+					+'FROM 14QM1T-uEiWyA805KWvriwxvyZ-fAEDWlATABxJA WHERE linha_id = '+linha_id+"&key=AIzaSyDzCqo28pFaXthYWbHulJWwg08416pd_xQ", callback); 
+		}
+		
+		FusionTablesProxy.prototype.getNearestBusStops = function(latlng, radius, callback)
+		{
+				$.getJSON(this.url
+					+'SELECT geo '
+					+'FROM 1lKFJZk19sczADdgx3kVE2uFEd_p-dcUFIbusVWg WHERE ST_INTERSECTS(geo, CIRCLE(LATLNG('+latlng.lat()+','+ latlng.lng() +'),'+ radius 
+					+'))&key=AIzaSyDzCqo28pFaXthYWbHulJWwg08416pd_xQ', callback); 
+		}
 
-		Linha = function(){}
+		Linha = function()
+		{
+			this.nome = "";
+			this.sentido = "";
+		}
 		
 		function PoaVis()
 		{
 			this.linhas_cache = {};
-			this.linhas_layers = {};
+			this.linhas = {};
 			this.available_colors = ['#FF0000', '#00FF00', '#0000FF'];
 			this.next_available_color = 0;
+			this.fusion_tables = new FusionTablesProxy();
 		}
 		
 		PoaVis.prototype.initialize = function(){
@@ -51,9 +85,7 @@
 		
 		PoaVis.prototype.cacheLines = function(){
 			var _this = this;
-			$.getJSON('https://www.googleapis.com/fusiontables/v1/query?sql='
-					+'SELECT linha_id, onibus_id, nome,sentido '
-					+'FROM 14QM1T-uEiWyA805KWvriwxvyZ-fAEDWlATABxJA&key=AIzaSyDzCqo28pFaXthYWbHulJWwg08416pd_xQ', function(data) {
+			this.fusion_tables.getLines(function(data) {
 				$.each(data.rows, function(index, value){
 					linha_id = value[0];
 					nome = value[2];
@@ -95,17 +127,6 @@
     	          	(place.address_components[2] && place.address_components[2].short_name || '')
         	    	].join(' ');
 				}
-
-        		var paradas_perto = new google.maps.FusionTablesLayer({
-          			query: {
-            			select: "geo",
-						from: "1lKFJZk19sczADdgx3kVE2uFEd_p-dcUFIbusVWg",
-						where: "ST_INTERSECTS(geo, CIRCLE(LATLNG("+place.geometry.location.lat()+","+ place.geometry.location.lng() +"),500))"
-          			},
-          			map: _this.map_canvas
-				});
-				//AIzaSyDzCqo28pFaXthYWbHulJWwg08416pd_x
-
 			});
 		}
 		
@@ -117,34 +138,75 @@
 					$.each(_this.linhas_cache, function(linha_id, linha){
 							if(linha.nome.toLowerCase().indexOf(request.term.toLowerCase()) != -1){
 								text = linha.nome + " - Sentido " + linha.sentido;
-								ac_response.push({label:text, value:text, id:linha_id});
+								ac_response.push({label:text, value:"", id:linha_id});
 							}		
 					});
 					response(ac_response);
 				},
 				select: function( event, ui ) {
-				alert("LABEL=" +  ui.item.label + "/n" + "VALUE=" + ui.item.value + "/n" + "VALUEB=" + this.value+ "/n ID = "+  ui.item.id);
+				console.log("LABEL=" +  ui.item.label + "/n" + "VALUE=" + ui.item.value + "/n" + "VALUEB=" + this.value+ "/n ID = "+  ui.item.id);
 					linha_id = ui.item.id;
 					
-					this.linhas_layers[linha_id] = new google.maps.FusionTablesLayer({
-						query: {
-								select: 'geometria',
-								from: '4493397', //linhas
-								where: "linha_id=" + linha_id
-						},
-						map: _this.map_canvas
-					});
-
-
+					_this.linhas[linha_id] = new Linha();
+					_this.linhas[linha_id].nome = _this.linhas_cache[linha_id].nome;
+					
+					_this.plotPolyline(linha_id, _this.getNextAvailableColor());
+					
 
 					//TODO: 
-					//clear value from linhas
 					//add to table
-					//make add more than one fusion table layer
 					//status when loading line
 				}		
 			});
 		}
+		
+		PoaVis.prototype.getNearestBusStops = function (latlng){
+			console.log("LAT = " + latlng.lat());
+			console.log("LNG = " + latlng.lng());
+			_this = this;
+			this.fusion_tables.getNearestBusStops(latlng, 500, function(data){
+				$.each(data.rows, function(i,point){
+					point=point[0].split(",");
+					var coordinate = new google.maps.LatLng(point[0], point[1]);
+					var paradaMarker = new google.maps.Marker({
+						    	position: coordinate,
+								icon:  "http://storage.googleapis.com/support-kms-prod/SNP_2752125_en_v0",
+						    	map: _this.map_canvas
+					});
+				});
+			});
+		}
+		
+		//
+		// from poatransporte
+		PoaVis.prototype.plotPolyline =  function(id, color) {
+			var coordinates = new google.maps.MVCArray();
+			
+			_this = this;
+			this.fusion_tables.getLineGeometry(linha_id, function(data){
+   				var latlngbounds = new google.maps.LatLngBounds();
+				
+				var points = data.rows[0][0];
+				$.each(points.geometry.coordinates, function(i,point){
+   					var coordinate = new google.maps.LatLng(point[1], point[0]);
+					coordinates.push(coordinate);
+					latlngbounds.extend(coordinate);
+   				});
+				
+   				_this.map_canvas.fitBounds(latlngbounds);
+				
+				var path = new google.maps.Polyline({
+   					path: coordinates,
+		   	   		strokeColor: color,
+   	   				strokeOpacity: 0.7,
+		   	   		strokeWeight: 3
+		   		});
+
+				path.setMap(_this.map_canvas);
+
+			});
+		}
+		
 		
 			//--------------------------------------------------------------------------------------------------
 			// menu
@@ -205,6 +267,8 @@
 
 		$(function() { 
 
+			$("#visualizarParadas").hide();
+
 			var poaMap = new PoaVis();
 			
 			poaMap.initialize();
@@ -216,6 +280,18 @@
 
 			poaMap.setupLinesAutocomplete();
 
+
+			google.maps.event.addListener(poaMap.map_canvas, 'zoom_changed', function(event) {
+				if(poaMap.map_canvas.getZoom() > 13){
+					$("#visualizarParadas").show();
+				}
+ 			});
+			//visualizarParadas
+			
+			$("#visualizarParadas").click(function() {
+				poaMap.getNearestBusStops(poaMap.map_canvas.getCenter());
+			});
+			
 
 			/*
 			var menu = new Menu(map_canvas);
@@ -258,6 +334,14 @@
 				</div>
 				<div style="float:left">
 					<input id="searchTextField" type="text" size="60" placeholder="Digite um local" autocomplete="off" />
+				</div>
+			</div>
+            <div style="float:left;clear:left">
+				<div style="float:left">
+					<input type="button" id="visualizarParadas" value="Visualizar paradas perto daqui" />
+				</div>
+				<div style="float:left">
+					&nbsp;
 				</div>
 			</div>
 		</div>
