@@ -54,8 +54,38 @@
 
 		Linha = function()
 		{
+			this.linha_id = "";
 			this.nome = "";
 			this.sentido = "";
+			this.path = null;
+		}
+		
+		Linha.prototype.draw = function(fusion_tables, color, map_canvas){
+			var coordinates = new google.maps.MVCArray();
+			
+			_this = this;
+			fusion_tables.getLineGeometry(linha_id, function(data){
+   				var latlngbounds = new google.maps.LatLngBounds();
+				
+				var points = data.rows[0][0];
+				$.each(points.geometry.coordinates, function(i,point){
+   					var coordinate = new google.maps.LatLng(point[1], point[0]);
+					coordinates.push(coordinate);
+					latlngbounds.extend(coordinate);
+   				});
+				
+   				map_canvas.fitBounds(latlngbounds);
+				
+				_this.path = new google.maps.Polyline({
+   					path: coordinates,
+		   	   		strokeColor: color,
+   	   				strokeOpacity: 0.7,
+		   	   		strokeWeight: 3
+		   		});
+
+				_this.path.setMap(map_canvas);
+
+			});
 		}
 		
 		function PoaVis()
@@ -149,15 +179,33 @@
 					linha_id = ui.item.id;
 					
 					_this.linhas[linha_id] = new Linha();
+					_this.linhas[linha_id].linha_id = linha_id;
 					_this.linhas[linha_id].nome = _this.linhas_cache[linha_id].nome;
 					_this.linhas[linha_id].sentido = _this.linhas_cache[linha_id].sentido;
+					_this.linhas[linha_id].draw(_this.fusion_tables,  _this.getNextAvailableColor(), _this.map_canvas);
 					
-					_this.plotPolyline(linha_id, _this.getNextAvailableColor());
-					var new_row = '<tr><td style="background-color:#EEE; border:1px solid#CCC">'
-					+_this.linhas[linha_id].nome
-					+'</td></tr>';
+					var new_row = '<tr>'
+                        	+ '<td style="background-color:#EEE; border:1px solid#CCC">'
+                            + '<table style="width:280px">'
+                            	+'<tr>'
+                                	+'<td>'
+                                    +
+									_this.linhas[linha_id].nome
+                                    +'</td>'
+                                    +'<td style="background-color:#C00; border:1px solid #CCC; width:15px; cursor:pointer" id="linha_'+ linha_id +'">'
+                                    +'&nbsp;'
+                                    +'</td>'
+                                +'</tr>'
+                            +'</table>'
+                            +'</td>'
+                    	+'</tr>';
 					
 					$("#linhasTable > tbody:last").append(new_row);
+				
+					$("#linha_"+linha_id).click(function() {
+						linha_id = $(this).attr('id').substr(6);
+						_this.linhas[linha_id].path.setOptions({strokeColor:"#CCFF00"});
+					});
 
 					//TODO: 
 					//add to table
@@ -182,93 +230,6 @@
 				});
 			});
 		}
-		
-		//
-		// from poatransporte
-		PoaVis.prototype.plotPolyline =  function(id, color) {
-			var coordinates = new google.maps.MVCArray();
-			
-			_this = this;
-			this.fusion_tables.getLineGeometry(linha_id, function(data){
-   				var latlngbounds = new google.maps.LatLngBounds();
-				
-				var points = data.rows[0][0];
-				$.each(points.geometry.coordinates, function(i,point){
-   					var coordinate = new google.maps.LatLng(point[1], point[0]);
-					coordinates.push(coordinate);
-					latlngbounds.extend(coordinate);
-   				});
-				
-   				_this.map_canvas.fitBounds(latlngbounds);
-				
-				var path = new google.maps.Polyline({
-   					path: coordinates,
-		   	   		strokeColor: color,
-   	   				strokeOpacity: 0.7,
-		   	   		strokeWeight: 3
-		   		});
-
-				path.setMap(_this.map_canvas);
-
-			});
-		}
-		
-		
-			//--------------------------------------------------------------------------------------------------
-			// menu
-			//--------------------------------------------------------------------------------------------------
-			
-			// TODO: complete overlay
-			// https://developers.google.com/maps/documentation/javascript/overlays#CustomOverlays
-			function Menu(menu_div){
-				this.ts = null;
-				this.menu_div = menu_div;
-				this.items = [];
-			}
-
-			Menu.prototype =  new google.maps.OverlayView();
-
-			Menu.prototype.onAdd = function(){
-			  this.menu_div = $('<div class="item '+item.cl+'">'+item.label+'</div>');
-			  var panes = this.getPanes();
-			  $(panes.overlayLayer).append(menu_div);
-				
-			}
- 
-			// add item
-			Menu.prototype.add = function(label, cl, fnc){
-				this.items.push({
-					label:label,
-					fnc:fnc,
-					cl:cl
-				});
-			}
-			Menu.prototype.draw = function(){
-			  var overlayProjection = this.getProjection();
-
-			  // Retrieve the southwest and northeast coordinates of this overlay
-			  // in latlngs and convert them to pixels coordinates.
-			  // We'll use these coordinates to resize the DIV.
-			  var sw = overlayProjection.fromLatLngToDivPixel(this.bounds_.getSouthWest());
-			  var ne = overlayProjection.fromLatLngToDivPixel(this.bounds_.getNorthEast());
-
-
-				menu_div.offset({ top: ne.y, left: sw.x})
-					
-			}
-	
-			Menu.prototype.hide = function() {
-			  if (this.menu_div) {
-			    	this.menu_div.hide();
-  				}
-			}
-
-			Menu.prototype.show = function() {
-			  if (this.menu_div) {
-			    	this.menu_div.show();
-  				}
-			}
-		
 
 
 		$(function() { 
@@ -338,6 +299,7 @@
                 <p>Linhas</p>
                 <table style="border:1px solid #CCC; width:310px" cellspacing="2" id="linhasTable">
 	                <tbody>
+
     	            </tbody>
                 </table>
             </td>
