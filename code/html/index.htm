@@ -3,12 +3,13 @@
 	<title>PoaVis</title>
 	<style>
 		.map {   
-					height: 500px;
-					width: 600px;
+					height: 700px;
+					width: 700px;
 			}
 			.rounded { border-radius: 8px; -moz-border-radius: 8px; -webkit-border-radius: 8px; -khtml-border-radius: 8px; }
-			body{
+			body, td{
 					font-family:Arial;
+					font-size: 12px;
 			}
 	</style>
 	<link rel="stylesheet" href="css/themes/base/jquery.ui.all.css">
@@ -149,9 +150,14 @@
 					
 					_this.linhas[linha_id] = new Linha();
 					_this.linhas[linha_id].nome = _this.linhas_cache[linha_id].nome;
+					_this.linhas[linha_id].sentido = _this.linhas_cache[linha_id].sentido;
 					
 					_this.plotPolyline(linha_id, _this.getNextAvailableColor());
+					var new_row = '<tr><td style="background-color:#EEE; border:1px solid#CCC">'
+					+_this.linhas[linha_id].nome
+					+'</td></tr>';
 					
+					$("#linhasTable > tbody:last").append(new_row);
 
 					//TODO: 
 					//add to table
@@ -292,7 +298,7 @@
 				poaMap.getNearestBusStops(poaMap.map_canvas.getCenter());
 			});
 			
-
+			$('#accordion').accordion();
 			/*
 			var menu = new Menu(map_canvas);
 			menu.add('Direction to here', 'itemB',
@@ -317,36 +323,29 @@
     </script>
   </head>
   <body>
-	<div>
-		<div id="map-canvas" class="map rounded" style="float:left"></div>
-		<div style="float:left;width:50%;">
-			<div style="float:left;clear:left">
-				<div style="float:left">
-					<label for="linhas">Procurar por linha:</label>
-				</div>
-				<div style="float:left">
-					<input id="linhas" type="text" size="60" placeholder="Digite o nome de uma linha de ônibus" autocomplete="off"/>
-				</div>
-			</div>
-			<div style="float:left;clear:left">
-				<div style="float:left">
-					Procurar por local:
-				</div>
-				<div style="float:left">
-					<input id="searchTextField" type="text" size="60" placeholder="Digite um local" autocomplete="off" />
-				</div>
-			</div>
-            <div style="float:left;clear:left">
-				<div style="float:left">
-					<input type="button" id="visualizarParadas" value="Visualizar paradas perto daqui" />
-				</div>
-				<div style="float:left">
-					&nbsp;
-				</div>
-			</div>
-		</div>
-
-	</div>
+  	<table cellpadding="4">
+    	<tr>
+        	<td valign="top" style="border-right:1px solid #CCC">
+                <table style="background-color:#EEE; border:1px solid #CCC">
+                    <tr>
+                      <td><label>Por linha:</label><input id="linhas" type="text" size="35" placeholder="Digite o nome de uma linha de ônibus" autocomplete="off"/></td>
+                    </tr>
+                    <tr>
+                        <td><label>Por local:</label><input id="searchTextField" type="text" size="35" placeholder="Digite um local" autocomplete="off" />  </td>
+                     </tr>
+                </table>
+                
+                <p>Linhas</p>
+                <table style="border:1px solid #CCC; width:310px" cellspacing="2" id="linhasTable">
+	                <tbody>
+    	            </tbody>
+                </table>
+            </td>
+            <td rowspan="2"><div id="map-canvas" class="map rounded" style="float:left"></div></td>
+			        	          
+        </tr>
+    </table>
+    
   </body>
 </html>
 
