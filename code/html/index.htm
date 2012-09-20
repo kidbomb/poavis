@@ -3,27 +3,32 @@
 	<title>PoaVis</title>
 	<style>
 		.map {   
-					height: 700px;
-					width: 700px;
-			}
-			.rounded { border-radius: 8px; -moz-border-radius: 8px; -webkit-border-radius: 8px; -khtml-border-radius: 8px; }
-			body, td{
-					font-family:Arial;
-					font-size: 12px;
-			}
+			height: 700px;
+			width: 700px;
+		}
+		.rounded {
+			border-radius: 8px;
+			-moz-border-radius: 8px;
+			-webkit-border-radius: 8px;
+			-khtml-border-radius: 8px; 
+		}
+		body, td{
+			font-family:Arial;
+			font-size: 12px;
+		}
 	</style>
 	<link rel="stylesheet" href="css/themes/base/jquery.ui.all.css">
+	<link rel="stylesheet" media="screen" type="text/css" href="css/colorpicker.css" />
 
-    <script type="text/javascript"
-	    src="http://maps.google.com/maps/api/js?sensor=false&libraries=places"></script>
-
+    <script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=false&libraries=places"></script>
 	<script type="text/javascript" src="js/jquery/jquery.min.js"></script>
-    	<script type="text/javascript" src="js/jquery/jquery-ui.min.js"></script>
-		<script type="text/javascript" src="js/jquery/ui/jquery.ui.map.js"></script> 
-		<script type="text/javascript" src="js/jquery/ui/jquery.ui.map.overlays.js"></script>
+    <script type="text/javascript" src="js/jquery/jquery-ui.min.js"></script>
+	<script type="text/javascript" src="js/jquery/ui/jquery.ui.map.js"></script> 
+	<script type="text/javascript" src="js/jquery/ui/jquery.ui.map.overlays.js"></script>
+	<script type="text/javascript" src="js/colorpicker.js"></script>
 	<script type="text/javascript">
 	
-		//creating layers by jhands is lees error- prone
+		//creating layers by hands is lees error- prone
 		//weird behavior with geometries and inverted latlng
 	
 		FusionTablesProxy = function()
@@ -47,7 +52,7 @@
 		FusionTablesProxy.prototype.getNearestBusStops = function(latlng, radius, callback)
 		{
 				$.getJSON(this.url
-					+'SELECT geo '
+					+'SELECT geo,parada_id '
 					+'FROM 1lKFJZk19sczADdgx3kVE2uFEd_p-dcUFIbusVWg WHERE ST_INTERSECTS(geo, CIRCLE(LATLNG('+latlng.lat()+','+ latlng.lng() +'),'+ radius 
 					+'))&key=AIzaSyDzCqo28pFaXthYWbHulJWwg08416pd_xQ', callback); 
 		}
@@ -58,9 +63,10 @@
 			this.nome = "";
 			this.sentido = "";
 			this.path = null;
+			this.color = "";
 		}
 		
-		Linha.prototype.draw = function(fusion_tables, color, map_canvas){
+		Linha.prototype.draw = function(fusion_tables, map_canvas){
 			var coordinates = new google.maps.MVCArray();
 			
 			_this = this;
@@ -78,7 +84,7 @@
 				
 				_this.path = new google.maps.Polyline({
    					path: coordinates,
-		   	   		strokeColor: color,
+		   	   		strokeColor: _this.color,
    	   				strokeOpacity: 0.7,
 		   	   		strokeWeight: 3
 		   		});
@@ -86,6 +92,11 @@
 				_this.path.setMap(map_canvas);
 
 			});
+		}
+
+		function BusStop()
+		{
+			this.marker = null;
 		}
 		
 		function PoaVis()
@@ -95,6 +106,7 @@
 			this.available_colors = ['#FF0000', '#00FF00', '#0000FF'];
 			this.next_available_color = 0;
 			this.fusion_tables = new FusionTablesProxy();
+			this.nearest_bus_stops = {};
 		}
 		
 		PoaVis.prototype.initialize = function(){
@@ -167,7 +179,7 @@
 				source:  function(request, response) {
 					var ac_response = []
 					$.each(_this.linhas_cache, function(linha_id, linha){
-							if(linha.nome.toLowerCase().indexOf(request.term.toLowerCase()) != -1){
+							if(request.term.length >=2 && linha.nome.toLowerCase().indexOf(request.term.toLowerCase()) != -1){
 								text = linha.nome + " - Sentido " + linha.sentido;
 								ac_response.push({label:text, value:"", id:linha_id});
 							}		
@@ -179,21 +191,22 @@
 					linha_id = ui.item.id;
 					
 					_this.linhas[linha_id] = new Linha();
+					_this.linhas[linha_id].color = _this.getNextAvailableColor();
 					_this.linhas[linha_id].linha_id = linha_id;
 					_this.linhas[linha_id].nome = _this.linhas_cache[linha_id].nome;
 					_this.linhas[linha_id].sentido = _this.linhas_cache[linha_id].sentido;
-					_this.linhas[linha_id].draw(_this.fusion_tables,  _this.getNextAvailableColor(), _this.map_canvas);
+					_this.linhas[linha_id].draw(_this.fusion_tables, _this.map_canvas);
 					
 					var new_row = '<tr>'
-                        	+ '<td style="background-color:#EEE; border:1px solid#CCC">'
+                        	+ '<td style="background-color:#EEE; border:1px solid #CCC">'
                             + '<table style="width:280px">'
                             	+'<tr>'
                                 	+'<td>'
-                                    +
-									_this.linhas[linha_id].nome
+                                    + _this.linhas[linha_id].nome
                                     +'</td>'
-                                    +'<td style="background-color:#C00; border:1px solid #CCC; width:15px; cursor:pointer" id="linha_'+ linha_id +'">'
-                                    +'&nbsp;'
+									+'<td style="background-color:'+_this.linhas[linha_id].color
+									+';border:1px solid #CCCCCC;cursor:pointer;width:20px;" id="linha_'+ linha_id +'">'
+                                    +'<div id="colorpicker_'+linha_id+'"&nbsp;</div>'
                                     +'</td>'
                                 +'</tr>'
                             +'</table>'
@@ -204,8 +217,24 @@
 				
 					$("#linha_"+linha_id).click(function() {
 						linha_id = $(this).attr('id').substr(6);
-						_this.linhas[linha_id].path.setOptions({strokeColor:"#CCFF00"});
+						$('#colorpicker_'+linha_id+'>div').show();
 					});
+
+					$('#colorpicker_'+linha_id).ColorPicker({
+						flat: true,
+						color: _this.linhas[linha_id].color,
+						onSubmit: function(hsb, hex, rgb) {
+							_this.linhas[linha_id].path.setOptions({strokeColor:"#" + hex});
+							$('#colorpicker_'+linha_id+'>div').hide();
+							$('#linha_'+linha_id).css('background-color', '#' + hex);
+						}
+					});
+					$('#colorpicker_'+linha_id+'>div').css('position', 'absolute');
+					$('#colorpicker_'+linha_id+'>div').css('z-index', '2');
+					$('#colorpicker_'+linha_id+'>div').hide();
+
+ 
+					
 
 					//TODO: 
 					//add to table
@@ -219,10 +248,11 @@
 			console.log("LNG = " + latlng.lng());
 			_this = this;
 			this.fusion_tables.getNearestBusStops(latlng, 500, function(data){
-				$.each(data.rows, function(i,point){
-					point=point[0].split(",");
+				$.each(data.rows, function(i,row){
+					point=row[0].split(",");
+					parada_id = row[1];
 					var coordinate = new google.maps.LatLng(point[0], point[1]);
-					var paradaMarker = new google.maps.Marker({
+					_this.nearest_bus_stops[parada_id] = new google.maps.Marker({
 						    	position: coordinate,
 								icon:  "http://storage.googleapis.com/support-kms-prod/SNP_2752125_en_v0",
 						    	map: _this.map_canvas
@@ -230,7 +260,6 @@
 				});
 			});
 		}
-
 
 		$(function() { 
 
@@ -249,9 +278,18 @@
 
 
 			google.maps.event.addListener(poaMap.map_canvas, 'zoom_changed', function(event) {
-				if(poaMap.map_canvas.getZoom() > 13){
-					$("#visualizarParadas").show();
-				}
+				if(poaMap.map_canvas.getZoom() > 14){
+				//$("#visualizarParadas").show();
+					poaMap.getNearestBusStops(poaMap.map_canvas.getCenter());
+					} else {
+						for(parada_id in poaMap.nearest_bus_stops)
+						{
+						console.log("cleaning " + parada_id);
+						console.log(poaMap.nearest_bus_stops[parada_id]);
+							poaMap.nearest_bus_stops[parada_id].setMap(null);
+							//TODO:destroy, remove from dictionary
+						}
+					}
  			});
 			//visualizarParadas
 			
