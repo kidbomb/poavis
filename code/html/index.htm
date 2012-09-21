@@ -136,7 +136,6 @@
 		Line.prototype.draw = function(map_canvas){
 			var coordinates = new google.maps.MVCArray();
 			
-			_this = this;
 			this.service.getLineGeometry(line_id, function(data){
    				var latlngbounds = new google.maps.LatLngBounds();
 				
@@ -149,16 +148,16 @@
 				
    				map_canvas.fitBounds(latlngbounds);
 				
-				_this.path = new google.maps.Polyline({
+				this.path = new google.maps.Polyline({
    					path: coordinates,
-		   	   		strokeColor: _this.color,
+		   	   		strokeColor: this.color,
    	   				strokeOpacity: 0.7,
 		   	   		strokeWeight: 3
 		   		});
 
-				_this.path.setMap(map_canvas);
+				this.path.setMap(map_canvas);
 
-			});
+			}.bind(this));
 		}
 
 		function BusStop()
@@ -195,18 +194,17 @@
 		
 		
 		PoaVisMain.prototype.cacheLines = function(){
-			var _this = this;
 			this.service.getLines(function(data) {
 				$.each(data.rows, function(index, value){
 					line_id = value[0];
 					name = value[2];
 					sentido = value[3];
 
-					_this.lines_cache[line_id] = new Line();
-					_this.lines_cache[line_id].name = name;
-					_this.lines_cache[line_id].sentido = sentido;
-				});
-			});
+					this.lines_cache[line_id] = new Line();
+					this.lines_cache[line_id].name = name;
+					this.lines_cache[line_id].sentido = sentido;
+				}.bind(this));
+			}.bind(this));
 		}
 		
 		PoaVisMain.prototype.setupPlacesAutocomplete = function(){
@@ -217,11 +215,10 @@
 
 	        var autocomplete = new google.maps.places.Autocomplete(input);
     	    autocomplete.bindTo('bounds', this.map_canvas);
-			var _this = this;
 
         	google.maps.event.addListener(autocomplete, 'place_changed', function() {
-  				_this.onMapPlaceChanged(autocomplete, marker);
-			});
+  				this.onMapPlaceChanged(autocomplete, marker);
+			}.bind(this));
 		}
 
 		PoaVisMain.prototype.onMapPlaceChanged = function(autocomplete, marker)	{
@@ -246,38 +243,36 @@
 		}
 		
 		PoaVisMain.prototype.setupLinesAutocomplete = function(){
-			var _this = this;
 			$( "#linhas" ).autocomplete({   
 				source:  function(request, response) {
 					var ac_response = []
-					$.each(_this.lines_cache, function(line_id, line){
+					$.each(this.lines_cache, function(line_id, line){
 							if(request.term.length >=2 && line.name.toLowerCase().indexOf(request.term.toLowerCase()) != -1){
 								text = line.name + " - Sentido " + line.sentido;
 								ac_response.push({label:text, value:"", id:line_id});
 							}		
 					});
 					response(ac_response);
-				},
+				}.bind(this),
 				select: function( event, ui ) {
 					line_id = ui.item.id;
 					
-					_this.lines[line_id] = new Line();
-					_this.lines[line_id].color = _this.getNextAvailableColor();
-					_this.lines[line_id].line_id = line_id;
-					_this.lines[line_id].name = _this.lines_cache[line_id].name;
-					_this.lines[line_id].sentido = _this.lines_cache[line_id].sentido;
-					_this.lines[line_id].draw(_this.map_canvas);
+					this.lines[line_id] = new Line();
+					this.lines[line_id].color = this.getNextAvailableColor();
+					this.lines[line_id].line_id = line_id;
+					this.lines[line_id].name = this.lines_cache[line_id].name;
+					this.lines[line_id].sentido = this.lines_cache[line_id].sentido;
+					this.lines[line_id].draw(this.map_canvas);
 
-					_this.bus_stop_list.createRow(_this.lines[line_id]);
+					this.bus_stop_list.createRow(this.lines[line_id]);
 
 					//TODO: 
 					//status when loading line
-				}		
+				}.bind(this)		
 			});
 		}
 		
 		PoaVisMain.prototype.getNearestBusStops = function (latlng){
-			_this = this;
 			this.bus_stop_service.getNearestBusStops(latlng, 500, function(data){
 				$.each(data.rows, function(i,row){
 					point=row[0].split(",");
@@ -286,11 +281,11 @@
 					new_marker = new google.maps.Marker({
 						    	position: coordinate,
 								icon:  "http://storage.googleapis.com/support-kms-prod/SNP_2752125_en_v0",
-						    	map: _this.map_canvas
+						    	map: this.map_canvas
 					});
 					nearest_bus_stops.push(new_marker);
-				});
-			});
+				}.bind(this));
+			}.bind(this));
 		}
 
 		PoaVisMain.prototype.clearNearestBusStops = function(){
