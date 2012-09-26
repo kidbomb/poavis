@@ -27,7 +27,7 @@ public class ParadasParser {
 		
 		FileWriter fstreamParadas = new FileWriter("paradas.csv");
 		BufferedWriter writerParadas = new BufferedWriter(fstreamParadas);
-		writerParadas.write("parada_id,latitude,longitude,terminal\n");
+		writerParadas.write("parada_id,latlng,terminal\n");
 		
 		
 		FileWriter fstreamParadaLinha = new FileWriter("parada_linha.csv");
@@ -47,7 +47,7 @@ public class ParadasParser {
 			
 			System.out.println("Gravando informações da parada "+codigo);
 			
-			writerParadas.write(codigo+","+latitude+","+longitude+","+terminal+"\n");
+			writerParadas.write(codigo+",\""+latitude+","+longitude+"\","+terminal+"\n");
 			
 			JSONArray arrayOfLinhas = parada.getJSONArray("linhas"); 
 			for(int j = 0; j < arrayOfLinhas.length(); j++){
